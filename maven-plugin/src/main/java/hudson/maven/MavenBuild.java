@@ -482,34 +482,18 @@ public class MavenBuild extends AbstractMavenBuild<MavenModule,MavenBuild> {
                     public void cleanUp(BuildListener listener) {
                     }
                 });
-                
-                
-                // record modules which have not been build though they should have - i.e. because they
-                // have SCM changes.
-                // see JENKINS-5764
-                if (getParentBuild().getParent().isIncrementalBuild() && getParentBuild().getResult() == Result.FAILURE) {
-                    UnbuiltModuleAction action = getParentBuild().getAction(UnbuiltModuleAction.class);
-                    if (action == null) {
-                        action = new UnbuiltModuleAction();
-                        getParentBuild().getActions().add(action);
-                    }
-                    action.addUnbuiltModule(getParent().getModuleName());
+            }
+            
+            // Remember all modules of a failed incremental build, so they are build again next time.
+            // This is to prevent incomplete deployments of maven modules o.s.l.t 
+            // see JENKINS-5764, JENKINS-5121
+            if (getParentBuild().getParent().isIncrementalBuild() && getParentBuild().getResult().isWorseThan(Result.SUCCESS)) {
+                UnbuiltModuleAction action = getParentBuild().getAction(UnbuiltModuleAction.class);
+                if (action == null) {
+                    action = new UnbuiltModuleAction();
+                    getParentBuild().getActions().add(action);
                 }
-            } else {
-                // mark that this module has been built now, if it has previously been remembered as unbuilt
-                // JENKINS-5764
-                MavenModuleSetBuild previousParentBuild = getParentBuild().getPreviousBuild();
-                if (previousParentBuild != null) {
-                    UnbuiltModuleAction unbuiltModuleAction = previousParentBuild.getAction(UnbuiltModuleAction.class);
-                    if (unbuiltModuleAction != null) {
-                        unbuiltModuleAction.removeUnbuildModule(getParent().getModuleName());
-                        try {
-                            previousParentBuild.save();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
+                action.addUnbuiltModule(getParent().getModuleName());
             }
         }
 

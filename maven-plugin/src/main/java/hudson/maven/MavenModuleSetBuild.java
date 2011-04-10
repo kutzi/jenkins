@@ -491,12 +491,10 @@ public class MavenModuleSetBuild extends AbstractMavenBuild<MavenModuleSet,Maven
                             // we act as if incrementalBuild is not set if there are no changes.
                             if (!MavenModuleSetBuild.this.getChangeSet().isEmptySet()
                                 && project.isIncrementalBuild()) {
-				// If there are changes for this module, add it.
-				// Also add it if we've never seen this module before,
-				// or if the previous build of this module failed or was unstable.
+                                //If there are changes for this module, add it.
+                                // Also add it if we've never seen this module before.
                                 if ((mb.getPreviousBuiltBuild() == null) ||
-                                    (!getChangeSetFor(m).isEmpty()) 
-                                    || (mb.getPreviousBuiltBuild().getResult().isWorseThan(Result.SUCCESS))) {
+                                    (!getChangeSetFor(m).isEmpty())) {
                                     changedModules.add(m.getModuleName());
                                 }
                             }
@@ -607,18 +605,18 @@ public class MavenModuleSetBuild extends AbstractMavenBuild<MavenModuleSet,Maven
         private Collection<ModuleName> getUnbuildModulesSinceLastSuccessfulBuild() {
             Collection<ModuleName> unbuiltModules = new ArrayList<ModuleName>();
             MavenModuleSetBuild previousSuccessfulBuild = getPreviousSuccessfulBuild();
+            
             if (previousSuccessfulBuild != null) {
-                MavenModuleSetBuild previousBuild = previousSuccessfulBuild;
-                do {
-                    UnbuiltModuleAction unbuiltModuleAction = previousBuild.getAction(UnbuiltModuleAction.class);
+                MavenModuleSetBuild previousFailedBuild = previousSuccessfulBuild.getNextBuild();
+                
+                while (previousFailedBuild != null && previousFailedBuild != MavenModuleSetBuild.this) {
+                    UnbuiltModuleAction unbuiltModuleAction = previousFailedBuild.getAction(UnbuiltModuleAction.class);
                     if (unbuiltModuleAction != null) {
-                        for (ModuleName name : unbuiltModuleAction.getUnbuildModules()) {
-                            unbuiltModules.add(name);
-                        }
+                        unbuiltModules.addAll(unbuiltModuleAction.getUnbuildModules());
                     }
                     
-                    previousBuild = previousBuild.getNextBuild();
-                } while (previousBuild != null && previousBuild != MavenModuleSetBuild.this);
+                    previousFailedBuild = previousFailedBuild.getNextBuild();
+                }
             }
             return unbuiltModules;
         }
