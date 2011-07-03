@@ -23,32 +23,35 @@
  */
 package hudson.maven.reporters;
 
-import hudson.FilePath;
 import hudson.Extension;
+import hudson.FilePath;
 import hudson.maven.MavenBuild;
 import hudson.maven.MavenBuildProxy;
 import hudson.maven.MavenBuildProxy.BuildCallable;
 import hudson.maven.MavenModule;
+import hudson.maven.MavenModuleSetBuild;
 import hudson.maven.MavenReporter;
 import hudson.maven.MavenReporterDescriptor;
 import hudson.maven.MojoInfo;
-import hudson.maven.MavenModuleSetBuild;
 import hudson.model.BuildListener;
 import hudson.model.FingerprintMap;
 import hudson.model.Hudson;
 import hudson.tasks.Fingerprinter.FingerprintAction;
-import org.apache.maven.artifact.Artifact;
-import org.apache.maven.project.MavenProject;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.List;
+import java.util.logging.Logger;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.project.MavenProject;
 
 /**
  * Records fingerprints of the builds to keep track of dependencies.
@@ -56,6 +59,8 @@ import java.util.List;
  * @author Kohsuke Kawaguchi
  */
 public class MavenFingerprinter extends MavenReporter {
+    
+    private static final boolean debug = true;
 
     /**
      * Files whose fingerprints were already recorded.
@@ -81,10 +86,11 @@ public class MavenFingerprinter extends MavenReporter {
      * Mojos perform different dependency resolution, so we need to check this for each mojo.
      */
     public boolean postExecute(MavenBuildProxy build, MavenProject pom, MojoInfo mojo, BuildListener listener, Throwable error) throws InterruptedException, IOException {
-        record(pom.getArtifacts(),used);
-        record(pom.getArtifact(),produced);
-        record(pom.getAttachedArtifacts(),produced);
-        record(pom.getGroupId(),pom.getFile(),produced);
+        PrintStream logger = listener.getLogger();
+        record(pom, pom.getArtifacts(),used,logger);
+        record(pom, pom.getArtifact(),produced,logger);
+        record(pom, pom.getAttachedArtifacts(),produced,logger);
+        record(pom, pom.getGroupId(),pom.getFile(),produced,logger);
 
         return true;
     }
@@ -92,8 +98,8 @@ public class MavenFingerprinter extends MavenReporter {
     /**
      * Sends the collected fingerprints over to the master and record them.
      */
-    public boolean postBuild(MavenBuildProxy build, MavenProject pom, BuildListener listener) throws InterruptedException, IOException {
-        build.executeAsync(new BuildCallable<Void,IOException>() {
+    public boolean postBuild(MavenBuildProxy proxy, final MavenProject pom, BuildListener listener) throws InterruptedException, IOException {
+        proxy.executeAsync(new BuildCallable<Void,IOException>() {
             // record is transient, so needs to make a copy first
             private final Map<String,String> u = used;
             private final Map<String,String> p = produced;
@@ -108,7 +114,7 @@ public class MavenFingerprinter extends MavenReporter {
 
                 Map<String,String> all = new HashMap<String, String>(u);
                 all.putAll(p);
-
+                
                 // add action
                 FingerprintAction fa = build.getAction(FingerprintAction.class);
                 if (fa!=null)   fa.add(all);
@@ -119,9 +125,9 @@ public class MavenFingerprinter extends MavenReporter {
         return true;
     }
 
-    private void record(Collection<Artifact> artifacts, Map<String,String> record) throws IOException, InterruptedException {
+    private void record(MavenProject pom, Collection<Artifact> artifacts, Map<String,String> record, PrintStream logger) throws IOException, InterruptedException {
         for (Artifact a : artifacts)
-            record(a,record);
+            record(pom,a,record, logger);
     }
 
     /**
@@ -131,20 +137,24 @@ public class MavenFingerprinter extends MavenReporter {
      * This method contains the logic to avoid doubly recording the fingerprint
      * of the same file.
      */
-    private void record(Artifact a, Map<String,String> record) throws IOException, InterruptedException {
+    private void record(MavenProject pom, Artifact a, Map<String,String> record, PrintStream logger) throws IOException, InterruptedException {
         File f = a.getFile();
         if(files==null)
             throw new InternalError();
-        record(a.getGroupId(), f, record);
+        record(pom, a.getGroupId(), f, record, logger);
     }
 
-    private void record(String groupId, File f, Map<String, String> record) throws IOException, InterruptedException {
+    private void record(MavenProject pom, String groupId, File f, Map<String, String> record, PrintStream logger) throws IOException, InterruptedException {
         if(f==null || !f.exists() || f.isDirectory() || !files.add(f))
             return;
 
         // new file
         String digest = new FilePath(f).digest();
-        record.put(groupId+':'+f.getName(),digest);
+        String fingerprintName = groupId+':'+f.getName();
+        if (debug) {
+            logger.println(pom.getName() + ": recording fingerprint for "+fingerprintName);
+        }
+        record.put(fingerprintName,digest);
     }
 
     @Extension

@@ -258,6 +258,7 @@ public final class MavenArtifact implements Serializable {
      */
     public void recordFingerprint(MavenBuild build) throws IOException {
         FingerprintMap map = Hudson.getInstance().getFingerprintMap();
+        LOGGER.fine("Recording fingerprint "+fileName+" for build "+build);
         map.getOrCreate(build,fileName,md5sum);
     }
 
