@@ -396,7 +396,9 @@ public final class MavenModule extends AbstractMavenProject<MavenModule,MavenBui
             for (MavenModule m : Hudson.getInstance().getAllItems(MavenModule.class)) {
                 if(m.isDisabled())  continue;
                 ModuleDependency moduleDependency = m.asDependency();
-                modules.put(moduleDependency,m);
+                MavenModule old = modules.get(moduleDependency);
+                MavenModule relevant = chooseMoreRelevantModule(old, m);
+                modules.put(moduleDependency, relevant);
                 modules.put(moduleDependency.withUnknownVersion(),m);
             }
             data = new MavenDependencyComputationData(modules);
@@ -442,6 +444,54 @@ public final class MavenModule extends AbstractMavenProject<MavenModule,MavenBui
         }
     }
     
+    private MavenModule chooseMoreRelevantModule(MavenModule mm1, MavenModule mm2) {
+        if (mm1 == null) {
+            return mm2;
+        }
+        if (mm2 == null) {
+            return mm1;
+        }
+        
+        int relevancy1 = getDependencyRelevancy(mm1);
+        int relevancy2 = getDependencyRelevancy(mm2);
+        
+        if (relevancy1 > relevancy2) {
+            return mm1;
+        } else if (relevancy2 > relevancy1) {
+            return mm2;
+        }
+        
+        // arbitrary, but reproduceable
+        if (mm1.getParent().getName().compareTo(mm2.getParent().getName()) < 0) {
+            return mm2;
+        } else { // should always mean > 0 as name is unique
+            return mm1;
+        }
+    }
+
+    private int getDependencyRelevancy(MavenModule mm) {
+        
+        int relevancy = 0;
+        
+        for (String goal : Util.tokenize(mm.getGoals())) {
+            if ("deploy".equals(goal) || "deploy:deploy".equals(goal)) {
+                return 2;
+            }
+            
+            if ("install".equals(goal)) {
+                relevancy = 1;
+            }
+        }
+        
+        for (Publisher publisher : mm.getParent().getPublishers()) {
+            if (publisher instanceof RedeployPublisher) {
+                return 2;
+            }
+        }
+        
+        return relevancy;
+    }
+
     private static class MavenDependencyComputationData {
         Map<ModuleDependency,MavenModule> allModules;
         
