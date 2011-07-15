@@ -34,6 +34,8 @@ import junit.framework.TestCase;
 
 import org.jvnet.hudson.test.Bug;
 
+import org.jvnet.hudson.test.Bug;
+
 import hudson.util.StreamTaskListener;
 
 /**
