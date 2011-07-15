@@ -513,7 +513,6 @@ public class Util {
             MessageDigest md5 = MessageDigest.getInstance("MD5");
 
             byte[] buffer = new byte[1024];
-            
             DigestInputStream in =new DigestInputStream(source,md5);
             try {
                 while(in.read(buffer)>0)
