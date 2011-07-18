@@ -51,8 +51,6 @@ import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.export.Exported;
 
-import com.google.common.util.concurrent.MoreExecutors;
-
 import javax.servlet.ServletException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -401,7 +399,7 @@ public final class MavenModule extends AbstractMavenProject<MavenModule,MavenBui
                 MavenModule old = modules.get(moduleDependency);
                 MavenModule relevant = chooseMoreRelevantModule(old, m, moduleDependency);
                 modules.put(moduleDependency, relevant);
-                modules.put(moduleDependency.withUnknownVersion(),m);
+                modules.put(moduleDependency.withUnknownVersion(),relevant);
             }
             data = new MavenDependencyComputationData(modules);
             graph.putComputationalData(MavenDependencyComputationData.class, data);
