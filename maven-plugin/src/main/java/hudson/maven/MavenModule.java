@@ -382,7 +382,7 @@ public final class MavenModule extends AbstractMavenProject<MavenModule,MavenBui
     }
 
     protected void buildDependencyGraph(DependencyGraph graph) {
-        if(isDisabled() || getParent().ignoreUpstremChanges())        return;
+        if(!isBuildable() || getParent().ignoreUpstremChanges())        return;
 
         MavenDependencyComputationData data = graph.getComputationalData(MavenDependencyComputationData.class);
         
@@ -394,7 +394,7 @@ public final class MavenModule extends AbstractMavenProject<MavenModule,MavenBui
             // do this by always putting groupId:artifactId:UNKNOWN to the modules list.
     
             for (MavenModule m : Hudson.getInstance().getAllItems(MavenModule.class)) {
-                if(m.isDisabled())  continue;
+                if(!m.isBuildable())  continue;
                 ModuleDependency moduleDependency = m.asDependency();
                 MavenModule old = modules.get(moduleDependency);
                 MavenModule relevant = chooseMoreRelevantModule(old, m, moduleDependency);
