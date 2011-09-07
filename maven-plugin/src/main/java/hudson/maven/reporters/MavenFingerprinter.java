@@ -85,6 +85,7 @@ public class MavenFingerprinter extends MavenReporter {
      */
     public boolean postExecute(MavenBuildProxy build, MavenProject pom, MojoInfo mojo, BuildListener listener, Throwable error) throws InterruptedException, IOException {
         PrintStream logger = listener.getLogger();
+        recordParents(pom, logger);
         record(pom, pom.getArtifacts(),used,logger);
         record(pom, pom.getArtifact(),produced,logger);
         record(pom, pom.getAttachedArtifacts(),produced,logger);
@@ -134,6 +135,26 @@ public class MavenFingerprinter extends MavenReporter {
         for (Artifact a : artifacts)
             record(pom,a,record, logger);
     }
+    
+	private void recordParents(MavenProject pom, PrintStream logger) throws IOException, InterruptedException {
+		MavenProject parent = pom.getParent();
+		while (parent != null) {
+			File parentFile = parent.getFile();
+			if (parentFile == null) {
+				// Parent Artifact contains no acual file, so we resolve against
+				// the local repository
+				parentFile = parent.getProjectBuildingRequest()
+						.getLocalRepository().find(parent.getArtifact())
+						.getFile();
+			}
+			// we need to include the artifact Id for poms as well, otherwise a
+			// project with the same groupId would override its parent's
+			// fingerprint
+			record(pom, parent.getGroupId() + ":" + parent.getArtifactId(),
+					parentFile, used, logger);
+			parent = parent.getParent();
+		}
+	}
     
     /**
      * Records the fingerprint of the given {@link Artifact}.
