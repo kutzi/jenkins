@@ -48,8 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.logging.Logger;
-
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.project.MavenProject;
 
@@ -91,6 +89,13 @@ public class MavenFingerprinter extends MavenReporter {
         record(pom, pom.getArtifact(),produced,logger);
         record(pom, pom.getAttachedArtifacts(),produced,logger);
         record(pom, pom.getGroupId(),pom.getFile(),produced,logger);
+    	MavenProject parent = pom.getParent();
+    	while (parent != null) { 
+    		// Parent Artifact contains no acual file, so we resolve against the local repository
+    		Artifact parentArtifact = parent.getProjectBuildingRequest().getLocalRepository().find(parent.getArtifact());
+    		record(pom, parentArtifact, used, logger);
+    		parent = parent.getParent();
+    	}
 
         return true;
     }
@@ -129,18 +134,12 @@ public class MavenFingerprinter extends MavenReporter {
         for (Artifact a : artifacts)
             record(pom,a,record, logger);
     }
-
+    
     /**
      * Records the fingerprint of the given {@link Artifact}.
-     *
-     * <p>
-     * This method contains the logic to avoid doubly recording the fingerprint
-     * of the same file.
      */
     private void record(MavenProject pom, Artifact a, Map<String,String> record, PrintStream logger) throws IOException, InterruptedException {
         File f = a.getFile();
-        if(files==null)
-            throw new InternalError();
         record(pom, a.getGroupId(), f, record, logger);
     }
 
