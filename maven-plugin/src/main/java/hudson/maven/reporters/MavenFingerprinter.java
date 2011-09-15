@@ -24,6 +24,7 @@
 package hudson.maven.reporters;
 
 import hudson.Extension;
+import hudson.FilePath;
 import hudson.maven.MavenBuild;
 import hudson.maven.MavenBuildProxy;
 import hudson.maven.MavenBuildProxy.BuildCallable;
@@ -95,12 +96,8 @@ public class MavenFingerprinter extends MavenReporter {
     /**
      * Sends the collected fingerprints over to the master and record them.
      */
-    public boolean postBuild(MavenBuildProxy build, MavenProject pom, BuildListener listener) throws InterruptedException, IOException {
-        
-		recordParents(pom, listener.getLogger());
-        
-        build.executeAsync(new BuildCallable<Void,IOException>() {
-            private static final long serialVersionUID = -1360161848504044869L;
+    public boolean postBuild(MavenBuildProxy proxy, final MavenProject pom, BuildListener listener) throws InterruptedException, IOException {
+        proxy.executeAsync(new BuildCallable<Void,IOException>() {
             // record is transient, so needs to make a copy first
             private final Map<String,String> u = used;
             private final Map<String,String> p = produced;
@@ -130,52 +127,32 @@ public class MavenFingerprinter extends MavenReporter {
         for (Artifact a : artifacts)
             record(pom,a,record, logger);
     }
-    
-	private void recordParents(MavenProject pom, PrintStream logger) throws IOException, InterruptedException {
-		MavenProject parent = pom.getParent();
-		while (parent != null) {
-			File parentFile = parent.getFile();
-			if (parentFile == null) {
-				// Parent artifact contains no actual file, so we resolve against
-				// the local repository
-				parentFile = parent.getProjectBuildingRequest()
-						.getLocalRepository().find(parent.getArtifact())
-						.getFile();
-			}
-			// we need to include the artifact Id for poms as well, otherwise a
-			// project with the same groupId would override its parent's
-			// fingerprint
-			record(pom, parent.getGroupId() + ":" + parent.getArtifactId(),
-					parentFile, used, logger);
-			parent = parent.getParent();
-		}
-	}
-    
-    /**
-     * Records the fingerprint of the given {@link Artifact}.
-     */
-    private void record(MavenProject pom, Artifact a, Map<String,String> record, PrintStream logger) throws IOException, InterruptedException {
-        File f = a.getFile();
-        record(pom, a.getGroupId(), f, record, logger);
-    }
 
     /**
-     * Records the fingerprint of the given file.
+     * Records the fingerprint of the given {@link Artifact}.
      *
      * <p>
      * This method contains the logic to avoid doubly recording the fingerprint
      * of the same file.
      */
-    private void record(MavenProject pom, String fileNamePrefix, File f, Map<String, String> record, PrintStream logger) throws IOException, InterruptedException {
-        if(f==null || files.contains(f) || !f.isFile())
+    private void record(MavenProject pom, Artifact a, Map<String,String> record, PrintStream logger) throws IOException, InterruptedException {
+        File f = a.getFile();
+        if(files==null)
+            throw new InternalError();
+        record(pom, a.getGroupId(), f, record, logger);
+    }
+
+    private void record(MavenProject pom, String groupId, File f, Map<String, String> record, PrintStream logger) throws IOException, InterruptedException {
+        if(f==null || !f.exists() || f.isDirectory() || !files.add(f))
             return;
 
         // new file
-        String fingerprintName = fileNamePrefix+':'+f.getName();
+        String digest = new FilePath(f).digest();
+        String fingerprintName = groupId+':'+f.getName();
         if (debug) {
             logger.println(pom.getName() + ": recording fingerprint for "+fingerprintName);
         }
-        record.put(fingerprintName,fileNamePrefix);
+        record.put(fingerprintName,digest);
     }
 
     @Extension
