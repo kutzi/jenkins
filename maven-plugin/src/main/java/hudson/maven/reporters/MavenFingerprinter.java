@@ -57,7 +57,7 @@ import org.apache.maven.project.MavenProject;
  */
 public class MavenFingerprinter extends MavenReporter {
     
-    private static final boolean debug = true;
+    private static final boolean debug = false;
 
     /**
      * Files whose fingerprints were already recorded.
