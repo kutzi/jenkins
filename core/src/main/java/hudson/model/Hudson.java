@@ -207,7 +207,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
@@ -612,6 +611,9 @@ public final class Hudson extends Node implements ItemGroup<TopLevelItem>, Stapl
      *      If non-null, use existing plugin manager.  create a new one.
      */
     public Hudson(File root, ServletContext context, PluginManager pluginManager) throws IOException, InterruptedException, ReactorException {
+    	
+    	long start = System.currentTimeMillis();
+    	
     	// As hudson is starting, grant this process full control
     	SecurityContextHolder.getContext().setAuthentication(ACL.SYSTEM);
         try {
@@ -703,6 +705,10 @@ public final class Hudson extends Node implements ItemGroup<TopLevelItem>, Stapl
 
             for (ItemListener l : ItemListener.all())
                 l.onLoaded();
+            
+            if (LOG_STARTUP_PERFORMANCE) {
+            	LOGGER.info("Jenkins startup took " + (System.currentTimeMillis()-start) + " ms");
+            }
         } finally {
             SecurityContextHolder.clearContext();
         }
@@ -743,17 +749,28 @@ public final class Hudson extends Node implements ItemGroup<TopLevelItem>, Stapl
             }
         };
 
-        ExecutorService es;
-        if (PARALLEL_LOAD)
+        final ExecutorService es;
+        if (PARALLEL_LOAD) {
+        	int threads = getNumberOfInitThreads();
+        	LOGGER.info("Initializing Jenkins with " + threads + " threads");
             es = new ThreadPoolExecutor(
-                TWICE_CPU_NUM, TWICE_CPU_NUM, 5L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new DaemonThreadFactory());
-        else
+                threads, threads, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new DaemonThreadFactory());
+        } else {
             es = Executors.newSingleThreadExecutor(new DaemonThreadFactory());
+        }
         try {
             reactor.execute(es,buildReactorListener());
         } finally {
             es.shutdownNow();   // upon a successful return the executor queue should be empty. Upon an exception, we want to cancel all pending tasks
         }
+    }
+
+    private int getNumberOfInitThreads() {
+    	if (CPU_NUM < 3) {
+    		return 3;
+    	}
+    	
+    	return Math.min(16, CPU_NUM);
     }
 
     /**
@@ -3735,7 +3752,7 @@ public final class Hudson extends Node implements ItemGroup<TopLevelItem>, Stapl
      */
     public static final XStream XSTREAM = new XStream2();
 
-    private static final int TWICE_CPU_NUM = Runtime.getRuntime().availableProcessors() * 2;
+    private static final int CPU_NUM = Runtime.getRuntime().availableProcessors() * 2;
 
     /**
      * Thread pool used to load configuration in parallel, to improve the start up time.
@@ -3743,7 +3760,7 @@ public final class Hudson extends Node implements ItemGroup<TopLevelItem>, Stapl
      * The idea here is to overlap the CPU and I/O, so we want more threads than CPU numbers.
      */
     /*package*/ transient final ExecutorService threadPoolForLoad = new ThreadPoolExecutor(
-        TWICE_CPU_NUM, TWICE_CPU_NUM,
+        CPU_NUM, CPU_NUM,
         5L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new DaemonThreadFactory());
 
 
