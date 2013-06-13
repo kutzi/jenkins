@@ -26,8 +26,11 @@ package hudson.tasks.test;
 import hudson.Functions;
 import hudson.model.*;
 import hudson.tasks.junit.CaseResult;
+import hudson.tasks.junit.TestAction;
+import hudson.tasks.junit.TestResultAction.Data;
 import hudson.util.*;
 import hudson.util.ChartUtil.NumberOnlyBuildLabel;
+
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.CategoryAxis;
@@ -44,8 +47,11 @@ import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.export.Exported;
 import org.kohsuke.stapler.export.ExportedBean;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import java.awt.*;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +71,8 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     public final AbstractBuild<?,?> owner;
 
     private Map<String,String> descriptions = new ConcurrentHashMap<String, String>();
+    
+    private List<Data> testData = new ArrayList<Data>();
 
     protected AbstractTestResultAction(AbstractBuild owner) {
         this.owner = owner;
@@ -353,11 +361,26 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     protected void setDescription(TestObject object, String description) {
     	descriptions.put(object.getId(), description);
     }
+    
+    public List<TestAction> getActions(TestObject object) {
+        List<TestAction> result = new ArrayList<TestAction>();
+        for (Data data : testData) {
+            result.addAll(data.getTestAction(object));
+        }
+        return Collections.unmodifiableList(result);
+    }
+    
+    public void setData(List<Data> testData) {
+        this.testData = testData;
+    }
 
     public Object readResolve() {
     	if (descriptions == null) {
     		descriptions = new ConcurrentHashMap<String, String>();
     	}
+    	if (testData == null) {
+            testData = new ArrayList<Data>(0);
+        }
     	
     	return this;
     }

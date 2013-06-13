@@ -25,6 +25,7 @@ package hudson.maven;
 
 import hudson.Extension;
 import hudson.Launcher;
+import hudson.maven.reporters.SurefireAggregatedReport;
 import hudson.maven.reporters.SurefireReport;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
@@ -36,7 +37,9 @@ import hudson.tasks.BuildStepMonitor;
 import hudson.tasks.Publisher;
 import hudson.tasks.Recorder;
 import hudson.tasks.junit.TestDataPublisher;
+import hudson.tasks.junit.TestResult;
 import hudson.tasks.junit.TestResultAction.Data;
+import hudson.tasks.test.AggregatedTestResultAction.ChildReport;
 import hudson.util.DescribableList;
 
 import java.io.IOException;
@@ -65,27 +68,41 @@ public class MavenTestDataPublisher extends Recorder {
 		return BuildStepMonitor.STEP;
 	}
 
-	public boolean perform(AbstractBuild<?,?> build, Launcher launcher,
+	@SuppressWarnings("unchecked")
+    public boolean perform(AbstractBuild<?,?> build, Launcher launcher,
 			BuildListener listener) throws InterruptedException, IOException {
 
-		SurefireReport report = build.getAction(SurefireReport.class);
+		SurefireAggregatedReport report = build.getAction(SurefireAggregatedReport.class);
 		if (report == null) {
 			return true;
 		}
 		
 		List<Data> data = new ArrayList<Data>();
 		if (testDataPublishers != null) {
-			for (TestDataPublisher tdp : testDataPublishers) {
-				Data d = tdp.getTestData(build, launcher, listener, report.getResult());
-				if (d != null) {
-					data.add(d);
-				}
-			}
+		    for (TestResult testResult : getChildResults(report)) {
+    			for (TestDataPublisher tdp : testDataPublishers) {
+    				Data d = tdp.getTestData(build, launcher, listener, testResult);
+    				if (d != null) {
+    					data.add(d);
+    				}
+    			}
+		    }
 		}
 		
 		report.setData(data);
 
 		return true;
+	}
+	
+	private List<TestResult> getChildResults(SurefireAggregatedReport report) {
+	    List<TestResult> results = new ArrayList<TestResult>();
+	    List<ChildReport> childReports = report.getResult();
+        for (ChildReport childReport : childReports) {
+            if (childReport.result instanceof TestResult) {
+                results.add((TestResult) childReport.result);
+            }
+        }
+        return results;
 	}
 
 	public DescribableList<TestDataPublisher, Descriptor<TestDataPublisher>> getTestDataPublishers() {

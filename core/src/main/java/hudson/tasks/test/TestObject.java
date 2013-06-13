@@ -38,6 +38,7 @@ import org.kohsuke.stapler.export.ExportedBean;
 import com.google.common.collect.MapMaker;
 
 import javax.servlet.ServletException;
+
 import java.io.IOException;
 import java.util.*;
 import java.util.logging.Logger;
@@ -217,12 +218,12 @@ public abstract class TestObject extends hudson.tasks.junit.TestObject {
      * Get a list of all TestActions associated with this TestObject. 
      * @return
      */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
     public List<TestAction> getTestActions() {
         AbstractTestResultAction atra = getTestResultAction();
-        if ((atra != null) && (atra instanceof TestResultAction)) {
-            TestResultAction tra = (TestResultAction) atra;
-            return tra.getActions(this);
+        if (atra != null) {
+            return atra.getActions(this);
         } else {
             return new ArrayList<TestAction>();
         }

@@ -23,7 +23,9 @@
  */
 package hudson.tasks.junit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.thoughtworks.xstream.XStream;
+
 import hudson.XmlFile;
 import hudson.model.AbstractBuild;
 import hudson.model.Action;
@@ -32,13 +34,12 @@ import hudson.tasks.test.AbstractTestResultAction;
 import hudson.tasks.test.TestObject;
 import hudson.util.HeapSpaceStringConverter;
 import hudson.util.XStream2;
+
 import org.kohsuke.stapler.StaplerProxy;
 
 import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -60,7 +61,14 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
     private int failCount;
     private int skipCount;
     private Integer totalCount;
-    private List<Data> testData = new ArrayList<Data>();
+    
+    /**
+     * @deprecated see same field in superclass
+     * only left here for deserialization compatibility
+     */
+    @Deprecated
+    @VisibleForTesting
+    List<Data> testData;
 
     public TestResultAction(AbstractBuild owner, TestResult result, BuildListener listener) {
         super(owner);
@@ -157,21 +165,6 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
         return getResult();
     }
     
-    public List<TestAction> getActions(TestObject object) {
-    	List<TestAction> result = new ArrayList<TestAction>();
-	// Added check for null testData to avoid NPE from issue 4257.
-	if (testData!=null) {
-        for (Data data : testData) {
-            result.addAll(data.getTestAction(object));
-        }
-    }
-	return Collections.unmodifiableList(result);
-	
-    }
-    public void setData(List<Data> testData) {
-	this.testData = testData;
-    }
-
     /**
      * Resolves {@link TestAction}s for the given {@link TestObject}.
      *
@@ -192,9 +185,10 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
 
     public Object readResolve() {
         super.readResolve(); // let it do the post-deserialization work
-    	if (testData == null) {
-    		testData = new ArrayList<Data>(0);
+    	if (testData != null && !testData.isEmpty()) {
+    	    setData(testData);
     	}
+    	testData = null;
     	
     	return this;
     }
